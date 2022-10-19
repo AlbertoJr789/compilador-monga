@@ -1,75 +1,60 @@
-#IDs validos possuem no maximo 32 chars e sao case sensitive
 """
-
- Linguagem Toy
-
-    Gramatica::
-
-    F* --> C F | C
-    C  --> A | R | P
-    A --> ident = E ;
-    R --> read ( ident ) ;
-    P --> print ( ident ) ;
-
-    E --> M Rs
-    Rs --> + M Rs | lambda
-    M --> Op Rm
-    Rm --> * Op Rm | lambda
-    Op --> ( E ) | num
+ Linguagem Monga
 
     Tokens::
 
     ID | ATRIB | PTOVIRG | ARIT | OPENPAR | CLOSEPAR | NUM | ERROR | EOF
 
-    Monga:
-    Palavras reservadas
+    Palavras reservadas::
+
     ARROBA | AS | IF | TYPE | ELSE | NEW | VAR | FUNCTION | RETURN | WHILE | MAIN | THEN
 
-    Comparações e operadores logicos
-    < | > | <= | >= | || (OR) | && (AND) | ! (NEGAÇÃO)
+    Comparações e operadores logicos::
 
-    Operador ternario
+    < | > | <= | >= | || (OR) | && (AND) | ! (NEGAÇÃO) | ~=
+
+    Operador ternario::
     ? | :
 
     Comentarios::
     iniciam com # ate o fim da linha
-
 """
 
 from os import path
 
 class TipoToken:
-    #tokens padrões em linguagens
+
     ID = (1, 'id')
     ATRIB = (2, '=')
-    PTOVIRG = (4, ';')
-    ARIT = (5,'op')
-    OPENPAR = (8, '(')
-    CLOSEPAR = (9, ')')
-    NUM = (10, 'numero')
-    NUMHEX = (32,'numhex')
-    ERROR = (11, 'erro')
-    FIMARQ = (12, 'eof')
-    #tokens do monga
-    ARROBA = (13,'@')
-    AS = (14,'as')
-    IF = (15,'if')
-    WHILE = (16,'while')
-    TYPE = (17,'type')
-    ELSE = (18,'else')
-    NEW = (19,'new')
-    VAR = (20,'var')
-    FUNCTION = (21,'function')
-    RETURN = (22,'return')
-    COMPAR = (23,'compar')
-    OPLOG = (24,'oplog')
-    ABREBLOCO = (25,'{')
-    FECHABLOCO = (26,'}')
-    CASETERNARIO = (27,'?')
-    DOISPONTOS = (28,':')
-    ABRE_COLCHETE = (29,'[')
-    FECHA_COLCHETE = (30,']')
-    VIRGULA = (31,',')
+    PTOVIRG = (3, ';')
+    ARIT = (4,'op')
+    ABREPAR = (5, '(')
+    FECHAPAR = (6, ')')
+    NUM = (7, 'numero')
+    NUMHEX = (8,'numhex')
+    ERROR = (9, 'erro')
+    FIMARQ = (10, 'eof')
+    ARROBA = (11,'@')
+    AS = (12,'as')
+    IF = (13,'if')
+    WHILE = (14,'while')
+    TYPE = (15,'type')
+    ELSE = (16,'else')
+    NEW = (17,'new')
+    VAR = (18,'var')
+    FUNCTION = (19,'function')
+    RETURN = (20,'return')
+    COMPAR = (21,'compar')
+    OPLOG = (22,'oplog')
+    ABREBLOCO = (23,'{')
+    FECHABLOCO = (24,'}')
+    INTERROGACAO = (25,'?')
+    DOISPONTOS = (26,':')
+    ABRE_COLCHETE = (27,'[')
+    FECHA_COLCHETE = (28,']')
+    VIRGULA = (29,',')
+    PONTO = (30,'.')
+    NOT = (31,'!')
 
 class Token:
     def __init__(self, tipo, lexema, linha):
@@ -81,6 +66,7 @@ class Token:
         self.linha = linha
 
 class Lexico:
+
     # dicionario de palavras reservadas
     reservadas = {
         '@': TipoToken.ARROBA,
@@ -94,6 +80,9 @@ class Lexico:
         'function': TipoToken.FUNCTION,
         'return': TipoToken.RETURN,
     }
+
+    charsHex = ['0','1','2','3','4','5','6','7','8','9',
+    'A','B','C','D','E','F','a','b','c','d','e','f',';']
 
     def __init__(self, nomeArquivo):
         self.nomeArquivo = nomeArquivo
@@ -159,11 +148,17 @@ class Lexico:
                 elif car.isalpha(): #trata letras
                     estado = 2
                 elif car.isdigit(): #trata digitos
-                    estado = 3
+                    car = car + self.getChar()
+                    if car == '0x': #numero hex
+                        estado = 6
+                    else: #numero decimal
+                        self.ungetChar(car[-1])
+                        car = car.replace(car[-1],'')
+                        estado = 3
                 elif car in {'=', ';', '+', '*', '(', ')',
                              '<','>','|','&',
                              '!','@','{','}','?',
-                             ':','~','[',']',','}: #trata operadores aritmeticos e tokens primitivos
+                             ':','~','[',']',',','.'}: #trata operadores aritmeticos e tokens primitivos
                     estado = 4
                 elif car == '#': #trata comentario
                     estado = 5
@@ -181,7 +176,7 @@ class Lexico:
                     else:
                         return Token(TipoToken.ID, lexema, self.linha)
             elif estado == 3:
-                # estado que trata numeros inteiros
+                # estado que trata numeros
                 lexema = lexema + car
                 car = self.getChar()
                 if car is None or (not car.isdigit()):
@@ -212,9 +207,9 @@ class Lexico:
                 elif car in {'+','-','*','/'}:
                     return Token(TipoToken.ARIT, lexema, self.linha)
                 elif car == '(':
-                    return Token(TipoToken.OPENPAR, lexema, self.linha)
+                    return Token(TipoToken.ABREPAR, lexema, self.linha)
                 elif car == ')':
-                    return Token(TipoToken.CLOSEPAR, lexema, self.linha)
+                    return Token(TipoToken.FECHAPAR, lexema, self.linha)
                 elif car in {'<','>'}:
                     lexema = lexema + self.getChar() #vai tentar procurar um '='
                     if lexema in {'<=', '>='}:
@@ -223,16 +218,18 @@ class Lexico:
                         self.ungetChar(lexema[-1]) # 'des-lê'
                         lexema = lexema.replace(lexema[-1],'') #remove caractere do lexema
                     return Token(TipoToken.COMPAR, lexema, self.linha)
-                elif car in {'|','&','!'}:
+                elif car in {'|','&'}:
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
                     if lexema in {'||', '&&'}:
                         return Token(TipoToken.OPLOG, lexema, self.linha)
                     else:# se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
-                    return Token(TipoToken.OPLOG,lexema,self.linha)
+                    return Token(TipoToken.ERROR,lexema,self.linha)
                 elif car == '?':
-                    return Token(TipoToken.CASETERNARIO,lexema,self.linha)
+                    return Token(TipoToken.INTERROGACAO,lexema,self.linha)
+                elif car == '!':
+                    return Token(TipoToken.NOT,lexema,self.linha)
                 elif car == ':':
                     return Token(TipoToken.DOISPONTOS,lexema,self.linha)
                 elif car == '{':
@@ -247,22 +244,34 @@ class Lexico:
                     return Token(TipoToken.FECHA_COLCHETE,lexema,self.linha)
                 elif car == ',':
                     return Token(TipoToken.VIRGULA,lexema,self.linha)
+                elif car == '.':
+                    return Token(TipoToken.PONTO,lexema,self.linha)
             elif estado == 5:
                 # consumindo comentario
                 while (not car is None) and (car != '\n'):
                     car = self.getChar()
                 self.ungetChar(car)
                 estado = 1
+            elif estado == 6:
+                car = self.getChar()
+                lexema = lexema + car
+                #tratando numeros hexadecimais
+                if car not in self.charsHex:
+                    return Token(TipoToken.ERROR,'0x'+ lexema,self.linha)
+                else:
+                    if car == ';':
+                        # terminou o numero
+                        self.ungetChar(car)
+                        lexema = lexema.replace(lexema[-1],'')
+                        return Token(TipoToken.NUMHEX, '0x' + lexema, self.linha)
 
 
-#nome = input("Entre com o nome do arquivo: ")
-nome = 'exemplo.monga'
-lex = Lexico(nome)
-lex.abreArquivo()
-
-while(True):
-    token = lex.getToken()
-    print("token= %s , lexema= %s, linha= %d" % (token.msg, token.lexema, token.linha))
-    if token.const == TipoToken.FIMARQ[0]:
-        break
-lex.fechaArquivo()
+# lex = Lexico('exemplo.monga')
+# lex.abreArquivo()
+#
+# while(True):
+#     token = lex.getToken()
+#     print("token= %s , lexema= %s, linha= %d" % (token.msg, token.lexema, token.linha))
+#     if token.const == TipoToken.FIMARQ[0]:
+#         break
+# lex.fechaArquivo()

@@ -1,25 +1,23 @@
-# teste do lexico
+#Testar if,while,return,@,array,new,as,type
 
-#a=0;
-#read(a);
-#a = a+2;
-#print(a);
-#c = (34* 7 + (6 + 34)) * 45;   # 12510
-#d = c * 2 + 6;                 # 25026
-#f = d + c;                     # 37536
+#function abc (var1: int,var2: float,var3: int): int{}
 
-#print(f);
+#var abc: int;
 
-var abc: int;
-var salario: float;
 
-0x0045
+#var abc: int;
+#var salario: float;
 
-function abc(a,b,c): int{
+function abc(a: float,b: float,c: float): int{
 
+    var abc: int;
+    var soma: int;
+
+    soma = salario + abc;
 
 
 }
 
-type decTipo = [int]
+#abc(1,2,3);
+
 
