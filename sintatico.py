@@ -34,15 +34,39 @@ from semantico import Semantico
                  | WHILE COND BLOCK 
                  | VAR = EXP ; 
                  | return [ exp ] ; 
-                 | CALL ; 
+                 | id ( EXPLIST ); 
                  | @ EXP ;
                  | BLOCK
                  
     #Chamando variavel
     VAR -> id | EXP '[' EXP ']' | EXP . id
     
+    
+     -----
     #Expressões gerais (aritmetica, array, operador ternário) - PRODUÇÃO CAGADA
-    EXP -> VAR | ( EXP ) | CALL | EXP as TYPE | new TYPE [ '[' EXP ']' ] | - EXP | EXP + EXP | EXP - EXP | EXP * EXP | EXP / EXP | num        
+    EXP -> 
+           VAR 
+        | ( EXP ) 
+        | id ( EXPLIST ) 
+        | EXP as TYPE 
+        | new TYPE [ '[' EXP ']' ] 
+        | - EXP 
+        | EXP + EXP 
+        | EXP - EXP 
+        | EXP * EXP 
+        | EXP / EXP 
+        | num        
+        | EXP == EXP 
+        | EXP ~= EXP 
+        | EXP <= EXP 
+        | EXP >= EXP 
+        | EXP < EXP 
+        | ! EXP 
+        | EXP && EXP 
+        | EXP || EXP
+        
+        FAZER A TABELA
+    --------
     
     #Removendo ambiguidade do EXP (neste processo foram removidas as recursões à esquerda e feitas as devidas 
     fatorações)
@@ -51,6 +75,10 @@ from semantico import Semantico
     EXP' -> VAR EXP'| ( EXP ) EXP'| CALL EXP' | new TYPE [ '[' EXP ']' ] EXP' | EVAL EXP' | λ
             
     First(EXP/EXP') = { id , (, id - CALL, as, new, +, -, num, ( - EVAL}
+
+ exp : NUMERAL | var | '(' exp ')' | call | exp AS type | NEW type [ '[' exp ']' ] | '-' exp | exp '+' exp | exp '-' exp | exp '*' exp | exp '/' exp | cond '?' exp ':' exp
+
+cond : '(' cond ')' | exp '==' exp | exp '~=' exp | exp '<=' exp | exp '>=' exp | exp '<' exp | exp '>' exp | '!' cond | cond '&&' cond | cond '||' cond
 
     ---
     EVAL -> SOMA RESTOIGUAL
