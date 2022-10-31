@@ -27,7 +27,7 @@ class TipoToken:
     ID = (1, 'id')
     ATRIB = (2, '=')
     PTOVIRG = (3, ';')
-    ARIT = (4,'op')
+    ARIT_SUM = (4,'op_sum')
     ABREPAR = (5, '(')
     FECHAPAR = (6, ')')
     NUM = (7, 'numero')
@@ -44,7 +44,7 @@ class TipoToken:
     VAR = (18,'var')
     FUNCTION = (19,'function')
     RETURN = (20,'return')
-    COMPAR = (21,'compar')
+    COMPAR_IGUAL = (21,'compar_igual')
     OPLOG = (22,'oplog')
     ABREBLOCO = (23,'{')
     FECHABLOCO = (24,'}')
@@ -55,6 +55,9 @@ class TipoToken:
     VIRGULA = (29,',')
     PONTO = (30,'.')
     NOT = (31,'!')
+    IDVAR = (32,'idvar')
+    COMPAR_NUM = (33,'compar_num')
+    ARIT_MULT = (34,'op_mult')
 
 class Token:
     def __init__(self, tipo, lexema, linha):
@@ -79,6 +82,8 @@ class Lexico:
         'var': TipoToken.VAR,
         'function': TipoToken.FUNCTION,
         'return': TipoToken.RETURN,
+        'int': TipoToken.IDVAR,
+        'float': TipoToken.IDVAR,
     }
 
     charsHex = ['0','1','2','3','4','5','6','7','8','9',
@@ -189,7 +194,7 @@ class Lexico:
                 if car == '=':
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
                     if lexema == '==':
-                        return Token(TipoToken.COMPAR, lexema, self.linha)
+                        return Token(TipoToken.COMPAR_IGUAL, lexema, self.linha)
                     else:  # se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
@@ -197,15 +202,17 @@ class Lexico:
                 elif car == '~':
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
                     if lexema == '~=':
-                        return Token(TipoToken.COMPAR, lexema, self.linha)
+                        return Token(TipoToken.COMPAR_IGUAL, lexema, self.linha)
                     else:  # se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
                     return Token(TipoToken.ERROR, lexema, self.linha)
                 elif car == ';':
                     return Token(TipoToken.PTOVIRG, lexema, self.linha)
-                elif car in {'+','-','*','/'}:
-                    return Token(TipoToken.ARIT, lexema, self.linha)
+                elif car in {'+','-'}:
+                    return Token(TipoToken.ARIT_SUM, lexema, self.linha)
+                elif car in {'*','/'}:
+                    return Token(TipoToken.ARIT_MULT, lexema, self.linha)
                 elif car == '(':
                     return Token(TipoToken.ABREPAR, lexema, self.linha)
                 elif car == ')':
@@ -213,11 +220,11 @@ class Lexico:
                 elif car in {'<','>'}:
                     lexema = lexema + self.getChar() #vai tentar procurar um '='
                     if lexema in {'<=', '>='}:
-                        return Token(TipoToken.COMPAR,lexema,self.linha)
+                        return Token(TipoToken.COMPAR_NUM,lexema,self.linha)
                     else: #se não tiver
                         self.ungetChar(lexema[-1]) # 'des-lê'
                         lexema = lexema.replace(lexema[-1],'') #remove caractere do lexema
-                    return Token(TipoToken.COMPAR, lexema, self.linha)
+                    return Token(TipoToken.COMPAR_NUM, lexema, self.linha)
                 elif car in {'|','&'}:
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
                     if lexema in {'||', '&&'}:

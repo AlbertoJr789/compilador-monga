@@ -15,9 +15,9 @@ from semantico import Semantico
 
     PROGRAM -> { DEFINITION }
     DEFINITION -> DEF-VARIABLE | DEF-FUNCTION | DEF-TYPE
-    DEF-VARIABLE -> VAR id : TYPE ;
+    DEF-VARIABLE -> var id : TYPE ;
     TYPE -> id
-    DEF-TYPE -> tipo id = TYPEDESC
+    DEF-TYPE -> type id = TYPEDESC
     TYPEDESC -> id | '[' TYPEDESC ']' | '{' { FIELD } '}'
     FIELD -> id : TYPE ;
     
@@ -30,8 +30,8 @@ from semantico import Semantico
     BLOCK -> '{' { DEF-VARIABLE } { STATEMENT } '}'
     
     #Estruturas condicionais, repetição, escopo de bloco
-    STATEMENT -> if COND BLOCK [ else BLOCK ] 
-                 | WHILE COND BLOCK 
+    STATEMENT -> if EXP BLOCK [ else BLOCK ] 
+                 | WHILE EXP BLOCK 
                  | VAR = EXP ; 
                  | return [ exp ] ; 
                  | CALL ; 
@@ -39,51 +39,62 @@ from semantico import Semantico
                  | BLOCK
                  
     #Chamando variavel
-    VAR -> id | EXP '[' EXP ']' | EXP . id
+	VAR -> id | EXP VAR'
+	VAR' -> '[' EXP ']' | . id | λ
     
     #Expressões gerais (aritmetica, array, operador ternário) - PRODUÇÃO CAGADA
-    EXP -> VAR | ( EXP ) | CALL | EXP as TYPE | new TYPE [ '[' EXP ']' ] | - EXP | EXP + EXP | EXP - EXP | EXP * EXP | EXP / EXP | num        
+    EXP -> VAR 
+        | '(' EXP ')' 
+        | CALL 
+        | EXP as TYPE 
+        | new TYPE [ '[' EXP ']' ] 
+        | - EXP 
+        | EXP + EXP 
+        | EXP - EXP 
+        | EXP * EXP 
+        | EXP / EXP 
+        | num
+        | EXP == EXP
+        | EXP ~= EXP
+        | EXP <= EXP
+        | EXP >= EXP
+        | EXP < EXP
+        | EXP > EXP
+        | ! EXP
+        | EXP && EXP
+        | EXP || EXP        
+        
+    Precedencia (menor prioridade pra maior prioridade) 
+    --> {||, &&} -> {==,~=} -> {<,<=,>=,>} -> {+,-} -> {*,/} -> {-,!} -> {'(' EXP ')',num} 
     
-    #Removendo ambiguidade do EXP (neste processo foram removidas as recursões à esquerda e feitas as devidas 
-    fatorações)
-            
-    EXP -> VAR | ( EXP ) | CALL | as TYPE EXP' | new TYPE [ '[' EXP ']' ] |  EVAL   
-    EXP' -> VAR EXP'| ( EXP ) EXP'| CALL EXP' | new TYPE [ '[' EXP ']' ] EXP' | EVAL EXP' | λ
-            
-    First(EXP/EXP') = { id , (, id - CALL, as, new, +, -, num, ( - EVAL}
+    EXP -> VAR | CALL | EXP' as TYPE | new TYPE [ '[' EXP ']' ] | EVAL
+    
+    EXP' -> VAR EXP' | CALL EXP' | new TYPE [ '[' EXP ']' ] EXP' | EVAL EXP' | λ
+    
+    #Removendo Ambiguidades EXP
+    
+    EVAL-> COMPAR RESTOLOG
+    RESTOLOG -> λ | || EVAL | && EVAL
+    
+    COMPAR -> COMPARNUM RESTOCOMPAR
+    RESTOCOMPAR -> λ | == COMPAR | ~= COMPAR   
+    
+    COMPARNUM -> ARIT RESTOCOMPARNUM
+    RESTOCOMPARNUM -> λ | < COMPARNUM | <= COMPARNUM | >= COMPARNUM | > COMPARNUM       
 
-    ---
-    EVAL -> SOMA RESTOIGUAL
-    RESTOIGUAL -> = SOMA | λ       
+    ARIT -> SOMA RESTOARIT
+    RESTOARIT -> = ARIT | λ       
     
     SOMA -> MULT RESTOSOMA
     RESTOSOMA -> λ | + SOMA | - SOMA
     
-    MULT -> UNO MULT'
-    MULT' -> λ | RESTOMULT 
-    RESTOMULT -> * MULT | / MULT 
+    MULT -> UNO RESTOMULT
+    RESTOMULT -> λ | * MULT | / MULT 
     
-    UNO -> + UNO | - UNO | FATOR
+    UNO -> + UNO | - UNO | ! UNO | FATOR
     
-    FATOR -> num | ( EVAL )
-    ---
-        
-    #Avaliando condições lógicas - PRODUÇÃO CAGADA
-    COND -> '(' COND ')' | EXP == EXP | EXP ~= EXP | EXP <= EXP | EXP >= EXP | EXP < EXP | ! COND | COND && COND
-            | COND || COND
+    FATOR -> num | '(' EXP ')'  
     
-    #Removendo ambiguidade do COND (neste processo foram removidas as recursões à esquerda e feitas as devidas 
-    fatorações)
-    ---
-    COND -> '(' COND ')' | EXP == EXP | EXP ~= EXP | EXP <= EXP | EXP >= EXP  | EXP < EXP | EXP > EXP | LOG
-    
-    First(COND) = {(, id , (, id - CALL, as, new, +, -, num, ( - EVAL}, !, || , &&}
-
-    LOG -> NOT LOG'
-    LOG' -> || LOG' | && LOG' | λ
-    
-    NOT -> NOT' COND
-    NOT' -> ! NOT' | λ        
     ---
                     
     CALL -> id ( EXPLIST ) #chamada de função
@@ -127,6 +138,10 @@ class Sintatico:
             return False
 
     def consome(self, token):
+
+        if token == tt.ERROR:
+            print(f'ERRO LÉXICO [linha {self.tokenAtual.linha}, caractere \'{self.tokenAtual.lexema}\']: '
+                  f'NÃO RECONHECIDO OU EXCEDE 32 CARACTERES')
         if self.tokenEsperadoEncontrado(token) and not self.modoPanico:
             print(f'consumiu: {self.tokenAtual.tipo}: {self.tokenAtual.lexema}')
             self.tokenAtual = self.lex.getToken()
@@ -184,12 +199,14 @@ class Sintatico:
         print('definition')
         if self.tokenEsperadoEncontrado(tt.VAR):
             self.DEF_VARIABLE()
-        if self.tokenEsperadoEncontrado(tt.FUNCTION):
+        elif self.tokenEsperadoEncontrado(tt.FUNCTION):
             self.DEF_FUNCTION()
-        if self.tokenEsperadoEncontrado(tt.TYPE):
+        elif self.tokenEsperadoEncontrado(tt.TYPE):
             self.DEF_TYPE()
-        if self.tokenEsperadoEncontrado(tt.PTOVIRG):
+        elif self.tokenEsperadoEncontrado(tt.PTOVIRG):
             self.consome(tt.PTOVIRG)
+        else:
+            self.consome(tt.ERROR)
 
     #Reconhecendo declarações de variáveis
     # DEF-VARIABLE -> VAR id : TYPE ;
@@ -250,8 +267,51 @@ class Sintatico:
             self.STATEMENT()
         self.consome(tt.FECHABLOCO)
 
+    # Definindo um tipo
+    # DEF-TYPE -> tipo id = TYPEDESC
+    def DEF_TYPE(self):
+        print("def-type")
+        self.consome(tt.TYPE)
+        self.consome(tt.ID)
+        self.consome(tt.ATRIB)
+        self.TYPE_DESC()
+        self.consome(tt.PTOVIRG)
+
+    # Lendo um possível campo estruturado
+    # TYPEDESC -> id | '[' TYPEDESC ']' | '{' { FIELD } '}'
+    def TYPE_DESC(self):
+        print("type-desc")
+        if self.tokenEsperadoEncontrado(tt.ID):  # Tipo Simples
+            self.consome(tt.ID)
+        elif self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE):  # Aparentemente é um Array
+            self.consome(tt.ABRE_COLCHETE)
+            self.TYPE_DESC()
+            self.consome(tt.FECHA_COLCHETE)
+        elif self.tokenEsperadoEncontrado(tt.ABREBLOCO):
+            while self.tokenEsperadoEncontrado(tt.ID):  # Possui mais de um campo
+                self.FIELD()
+            self.consome(tt.FECHABLOCO)
+
+    # TYPE -> id
+    def TYPE(self):
+        print('type')
+        if self.tokenEsperadoEncontrado(tt.IDVAR):
+           self.consome(tt.IDVAR)
+        else:
+            self.consome(tt.ID)
+
+    # FIELD -> id : TYPE ;
+    def FIELD(self):
+        print('field')
+        self.consome(tt.ID)
+        self.consome(tt.DOISPONTOS)
+        self.TYPE()
+        self.consome(tt.PTOVIRG)
+
+    ### ---- Aqui é onde o filho chora e a mãe não vê ---- ####
+
     #   STATEMENT -> if COND BLOCK [ else BLOCK ] 
-    #              | WHILE COND BLOCK 
+    #              | while EXP BLOCK
     #              | VAR = EXP ; 
     #              | return [ exp ] ; 
     #              | CALL ; 
@@ -262,7 +322,7 @@ class Sintatico:
         #Lendo declaração IF-ELSE
         if self.tokenEsperadoEncontrado(tt.IF):
             self.consome(tt.IF)
-            self.COND()
+            self.EXP()
             self.BLOCK()
             if self.tokenEsperadoEncontrado(tt.ELSE):
                 self.consome(tt.ELSE)
@@ -270,7 +330,7 @@ class Sintatico:
         #Lendo declaração WHILE
         if self.tokenEsperadoEncontrado(tt.WHILE):
             self.consome(tt.WHILE)
-            self.COND()
+            self.EXP()
             self.BLOCK()
         #Declarando variável ou chamando uma função
         if self.tokenEsperadoEncontrado(tt.ID):
@@ -294,49 +354,11 @@ class Sintatico:
         if self.tokenEsperadoEncontrado(tt.ABREBLOCO):
             self.BLOCK()
 
-    #Definindo um tipo
-    #DEF-TYPE -> tipo id = TYPEDESC
-    def DEF_TYPE(self):
-        print("def-type")
-        self.consome(tt.TYPE)
-        self.consome(tt.ID)
-        self.consome(tt.ATRIB)
-        self.TYPE_DESC()
-        self.consome(tt.PTOVIRG)
-
-    #Lendo um possível campo estruturado
-    #TYPEDESC -> id | '[' TYPEDESC ']' | '{' { FIELD } '}'
-    def TYPE_DESC(self):
-        print("type-desc")
-        if self.tokenEsperadoEncontrado(tt.ID): #Tipo Simples
-            self.consome(tt.ID)
-        elif self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE): #Aparentemente é um Array
-            self.consome(tt.ABRE_COLCHETE)
-            self.TYPE_DESC()
-            self.consome(tt.FECHA_COLCHETE)
-        elif self.tokenEsperadoEncontrado(tt.ABREBLOCO):
-            while self.tokenEsperadoEncontrado(tt.ID): #Possui mais de um campo
-                self.FIELD()
-            self.consome(tt.FECHABLOCO)
-    
-    # TYPE -> id
-    def TYPE(self):
-        print('type')
-        self.consome(tt.ID)
-
-    # FIELD -> id : TYPE ;
-    def FIELD(self):
-        print('field')
-        self.consome(tt.ID)
-        self.consome(tt.DOISPONTOS)
-        self.TYPE()
-        self.consome(tt.PTOVIRG)
-
     #Produções que necessitaram de alterações
     # Avaliando expressões
     
-    #First(EXP) = { id ,( , id - CALL, as, new, +, -, num, ( - EVAL}
-    # EXP -> VAR | ( EXP ) | CALL | as TYPE EXP' | new TYPE [ '[' EXP ']' ] |  EVAL   
+    # First(EXP) = { id , id - CALL, as, new, +, -, ! num, ( }
+    # EXP -> VAR | CALL | EXP' as TYPE | new TYPE [ '[' EXP ']' ] | EVAL
     def EXP(self):
         print('exp')
         if self.tokenEsperadoEncontrado(tt.ID): #variavel ou chamada de função
@@ -346,19 +368,20 @@ class Sintatico:
             else: #chamando variavel
                 self.VAR()
 
-        if self.tokenEsperadoEncontrado(tt.ABREPAR): #alguma expressão entre parenteses
-            self.consome(tt.ABREPAR)
-            self.EXP()
-            self.consome(tt.FECHAPAR)
-
         if self.tokenEsperadoEncontrado(tt.NUM) or\
-           self.tokenEsperadoEncontrado(tt.ARIT): #numero ou sinal aritmetico
+           self.tokenEsperadoEncontrado(tt.ARIT_SUM) or\
+           self.tokenEsperadoEncontrado(tt.ARIT_MULT) or\
+           self.tokenEsperadoEncontrado(tt.OPLOG) or\
+           self.tokenEsperadoEncontrado(tt.COMPAR_IGUAL) or\
+           self.tokenEsperadoEncontrado(tt.COMPAR_NUM) or\
+           self.tokenEsperadoEncontrado(tt.ABREPAR) or\
+           self.tokenEsperadoEncontrado(tt.NOT): #numero ou sinal aritmetico
             self.EVAL()
 
         if self.tokenEsperadoEncontrado(tt.AS): #casting
+            self.EXP2()
             self.consome(tt.AS)
             self.TYPE()
-            self.EXP2()
 
         if self.tokenEsperadoEncontrado(tt.NEW):
             self.consome(tt.NEW)
@@ -369,12 +392,10 @@ class Sintatico:
                 self.EXP()
                 self.consome(tt.FECHA_COLCHETE)
 
-
-
-    #EXP' -> VAR EXP'| ( EXP ) EXP'| CALL EXP' | new TYPE [ '[' EXP ']' ] EXP' | EVAL EXP' | λ
+    #EXP' -> VAR EXP'| CALL EXP' | new TYPE [ '[' EXP ']' ] EXP' | EVAL EXP' | λ
     #First(EXP') = { id , (, id - CALL, new, +, -, num, ( - EVAL, λ}
     def EXP2(self):
-        print('EXP2')
+        print('EXP\'')
         if self.tokenEsperadoEncontrado(tt.ID): #variavel ou chamada de função
             self.consome(tt.ID)
             if self.tokenEsperadoEncontrado(tt.ABREPAR): #está chamando função
@@ -383,14 +404,10 @@ class Sintatico:
                 self.VAR()
             self.EXP2()
 
-        if self.tokenEsperadoEncontrado(tt.ABREPAR): #alguma expressão entre parenteses
-            self.consome(tt.ABREPAR)
-            self.EXP()
-            self.consome(tt.FECHAPAR)
-            self.EXP2()
-
         if self.tokenEsperadoEncontrado(tt.NUM) or\
-           self.tokenEsperadoEncontrado(tt.ARIT): #numero ou sinal aritmetico
+           self.tokenEsperadoEncontrado(tt.ARIT) or\
+           self.tokenEsperadoEncontrado(tt.ABREPAR) or \
+           self.tokenEsperadoEncontrado(tt.NOT):
             self.EVAL()
             self.EXP2()
 
@@ -407,53 +424,86 @@ class Sintatico:
 
     #Avaliando expressões aritméticas
     #---
-    
 
-    
+    # EVAL-> COMPAR RESTOLOG
+    # RESTOLOG -> λ | || EVAL | && EVAL
 
-    
+    # COMPAR -> COMPARNUM RESTOCOMPAR
+    # RESTOCOMPAR -> λ | == COMPAR | ~ = COMPAR
 
-    # EVAL -> SOMA RESTOIGUAL
-    # RESTOIGUAL -> = SOMA | λ       
-    
+    # COMPARNUM -> SUM RESTOCOMPARNUM
+    # RESTOCOMPARNUM -> λ | < COMPARNUM | <= COMPARNUM | >= COMPARNUM | > COMPARNUM
+
+    # SUM -> SOMA RESTOIGUAL
+    # RESTOIGUAL -> = SOMA | λ
+
     # SOMA -> MULT RESTOSOMA
     # RESTOSOMA -> λ | + SOMA | - SOMA
-    
-    # MULT -> UNO MULT'
-    # MULT' -> λ | RESTOMULT 
-    # RESTOMULT -> * MULT | / MULT 
-    
-    # UNO -> + UNO | - UNO | FATOR
-    
-    # FATOR -> num | ( EVAL )
 
+    # MULT -> UNO RESTOMULT
+    # RESTOMULT -> λ | *MULT | / MULT
+
+    # UNO -> + UNO | - UNO | ! UNO | FATOR
+
+    # FATOR -> num | '('EXP')'
+
+    # ----
 
     def EVAL(self):
         print('eval')
-        self.SOMA()
-        self.RESTOIGUAL()
+        self.COMPAR()
+        self.RESTOLOG()
 
-    # RESTOIGUAL -> = SOMA | λ       
-    def RESTOIGUAL(self):
-        print('restoigual')
+    def RESTOLOG(self):
+        print("resto_log")
+        if self.tokenEsperadoEncontrado(tt.OPLOG):
+            self.consome(tt.OPLOG)
+            self.EVAL()
+
+    def COMPAR(self):
+        print('compar')
+        self.COMPARNUM()
+        self.RESTOCOMPAR()
+
+    def COMPARNUM(self):
+        print('comparnum')
+        self.ARIT()
+        self.RESTOCOMPARNUM()
+
+    def RESTOCOMPAR(self):
+        print('restocompar')
+        if self.tokenEsperadoEncontrado(tt.COMPAR_IGUAL):
+            self.consome(tt.COMPAR_IGUAL)
+            self.COMPAR()
+
+    def ARIT(self):
+        print('arit')
+        self.SOMA()
+        self.RESTOARIT()
+
+    def RESTOCOMPARNUM(self):
+        print('restocomparnum')
+        if self.tokenEsperadoEncontrado(tt.COMPAR_NUM):
+            self.consome(tt.COMPAR_NUM)
+            self.COMPARNUM()
+
+    def RESTOARIT(self):
+        print('restoarit')
         if self.tokenEsperadoEncontrado(tt.ATRIB):
             self.consome(tt.ATRIB)
-            self.SOMA()
-    
-    # SOMA -> MULT RESTOSOMA
+            self.ARIT()
+
     def SOMA(self):
         print('soma')
         self.MULT()
         self.RESTOSOMA()
 
-    # RESTOSOMA -> λ | + SOMA | - SOMA
     def RESTOSOMA(self):
         print('restosoma')
-        if self.tokenEsperadoEncontrado(tt.ARIT):
-            self.consome(tt.ARIT)
+        if self.tokenEsperadoEncontrado(tt.ARIT_SUM):
+            self.consome(tt.ARIT_SUM)
             self.SOMA()
 
-    # MULT -> UNO MULT'
     def MULT(self):
         print('mult')
         self.UNO()
@@ -461,15 +511,17 @@ class Sintatico:
 
     def RESTOMULT(self):
         print('resto mult')
-        if self.tokenAtual.lexema == '*' or self.tokenAtual.lexema == '/':
-            self.consome(tt.ARIT)
+        if self.tokenEsperadoEncontrado(tt.ARIT_MULT):
+            self.consome(tt.ARIT_MULT)
             self.MULT()
 
     def UNO(self):
         print('uno')
-        if self.tokenAtual.lexema == '+' or self.tokenAtual.lexema == '-':
-            self.consome(tt.ARIT)
+        if self.tokenEsperadoEncontrado(tt.ARIT_SUM):
+            self.consome(tt.ARIT_SUM)
             self.UNO()
+        if self.tokenEsperadoEncontrado(tt.NOT):
+            self.consome(tt.NOT)
         else:
             self.FATOR()
 
@@ -477,50 +529,11 @@ class Sintatico:
         print('fator')
         if self.tokenEsperadoEncontrado(tt.NUM):
             self.consome(tt.NUM)
-        else:
+        if self.tokenEsperadoEncontrado(tt.ABREPAR ):
             self.consome(tt.ABREPAR)
-            self.EVAL()
+            self.EXP()
             self.consome(tt.FECHAPAR)
 
-    #----
-  
-
-    # COND -> '(' COND ')' | EXP == EXP | EXP ~= EXP | EXP <= EXP | EXP >= EXP  | EXP < EXP | EXP > EXP | LOG
-    # First(COND) = {(, id , (, id - CALL, as, new, +, -, num, ( - EVAL}, !, || , &&}
-    def COND(self): #TIRAR RECURSÃO
-        print('cond')
-        if self.tokenEsperadoEncontrado(tt.ABREPAR):
-            self.consome(tt.ABREPAR)
-            self.COND()
-            self.consome(tt.FECHAPAR)
-        if self.tokenEsperadoEncontrado(tt.NOT) or self.tokenEsperadoEncontrado(tt.OPLOG):
-            self.LOG()
-        else:
-            self.EXP()
-            self.consome(tt.COMPAR)
-            self.EXP()
-
-    def LOG(self):
-        print('log')
-        self.NOT()
-        self.LOG2()
-
-    def LOG2(self):
-        print('log2')
-        if self.tokenEsperadoEncontrado(tt.OPLOG):
-            self.consome(tt.OPLOG)
-            self.LOG2()
-
-    def NOT(self):
-        print('not')
-        self.NOT2()
-        self.COND()
-
-    def NOT2(self):
-        print('not2')
-        if self.tokenEsperadoEncontrado(tt.NOT):
-            self.consome(tt.NOT)
-            self.NOT2()
 
     #Chamada de uma função
     def CALL(self):
@@ -538,17 +551,22 @@ class Sintatico:
                 self.consome(tt.VIRGULA)
                 self.EXP()
 
-    # VAR -> id | EXP '[' EXP ']' | EXP . id
+    # VAR -> id | EXP VAR'
+    # VAR' -> '[' EXP ']' | . id | λ
     def VAR(self): #TIRAR RECURSÃO
         print('var')
+        if self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE) or\
+           self.tokenEsperadoEncontrado(tt.PONTO):
+            self.VAR2()
+
+    def VAR2(self):
         if self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE):
             self.consome(tt.ABRE_COLCHETE)
             self.EXP()
             self.consome(tt.FECHA_COLCHETE)
-        else:
+        if self.tokenEsperadoEncontrado(tt.PONTO):
             self.consome(tt.PONTO)
             self.consome(tt.ID)
-
 
 
     ##################################################################

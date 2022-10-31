@@ -1,19 +1,16 @@
 #Testar if,while,return,@,array,new,as,type
-
-#function abc (var1: int,var2: float,var3: int): int{}
-
-#var abc: int;
-
-
 #var abc: int;
 #var salario: float;
 
-function abc(a: float,b: float,c: float): int{
 
-    var abc: int;
-    var soma: int;
 
-    soma = salario + abc;
+function abc(a: objeto,b: float,c: float): int{
+
+    if var1 <= var2 {
+
+
+
+    }
 
 
 }
