@@ -30,12 +30,12 @@ class TipoToken:
     ARIT_SUM = (4,'op_sum')
     ABREPAR = (5, '(')
     FECHAPAR = (6, ')')
-    NUM = (7, 'numero')
-    NUMHEX = (8,'numhex')
+    NUM = (7, 'num_inteiro')
+    NUMHEX = (8,'num_hex')
+    NUMFLOAT = (37,'num_float')
     ERROR = (9, 'erro')
     FIMARQ = (10, 'eof')
     ARROBA = (11,'@')
-    AS = (12,'as')
     IF = (13,'if')
     WHILE = (14,'while')
     TYPE = (15,'type')
@@ -45,19 +45,22 @@ class TipoToken:
     FUNCTION = (19,'function')
     RETURN = (20,'return')
     COMPAR_IGUAL = (21,'compar_igual')
-    OPLOG = (22,'oplog')
-    ABREBLOCO = (23,'{')
-    FECHABLOCO = (24,'}')
-    INTERROGACAO = (25,'?')
-    DOISPONTOS = (26,':')
-    ABRE_COLCHETE = (27,'[')
-    FECHA_COLCHETE = (28,']')
-    VIRGULA = (29,',')
-    PONTO = (30,'.')
-    NOT = (31,'!')
-    IDVAR = (32,'idvar')
-    COMPAR_NUM = (33,'compar_num')
-    ARIT_MULT = (34,'op_mult')
+    AND = (22,'&&')
+    OR = (23,'||')
+    ID_FUNCTION = (24,'id_function')
+    ABREBLOCO = (25,'{')
+    FECHABLOCO = (26,'}')
+    INTERROGACAO = (27,'?')
+    DOISPONTOS = (28,':')
+    ABRE_COLCHETE = (29,'[')
+    FECHA_COLCHETE = (30,']')
+    VIRGULA = (31,',')
+    PONTO = (32,'.')
+    NOT = (33,'!')
+    IDVAR = (34,'idvar')
+    COMPAR_NUM = (35,'compar_num')
+    ARIT_MULT = (36,'op_mult')
+
 
 class Token:
     def __init__(self, tipo, lexema, linha):
@@ -73,15 +76,12 @@ class Lexico:
     # dicionario de palavras reservadas
     reservadas = {
         '@': TipoToken.ARROBA,
-        'as': TipoToken.AS,
-        'if': TipoToken.IF,
-        'while': TipoToken.WHILE,
-        'type': TipoToken.TYPE,
-        'else': TipoToken.ELSE,
-        'new': TipoToken.NEW,
-        'var': TipoToken.VAR,
-        'function': TipoToken.FUNCTION,
-        'return': TipoToken.RETURN,
+        'IF': TipoToken.IF,
+        'WHILE': TipoToken.WHILE,
+        'ELSE': TipoToken.ELSE,
+        'VAR': TipoToken.VAR,
+        'FUNCTION': TipoToken.FUNCTION,
+        'RETURN': TipoToken.RETURN,
         'int': TipoToken.IDVAR,
         'float': TipoToken.IDVAR,
     }
@@ -138,9 +138,13 @@ class Lexico:
             self.buffer = self.buffer + c
 
     def getToken(self):
+
         lexema = ''
         estado = 1
         car = None
+        ID_Erro = False
+        erro_Float = False
+
         while (True):
             if estado == 1:
                 # estado inicial que faz primeira classificacao
@@ -160,34 +164,51 @@ class Lexico:
                         self.ungetChar(car[-1])
                         car = car.replace(car[-1],'')
                         estado = 3
-                elif car in {'=', ';', '+', '*', '(', ')',
-                             '<','>','|','&',
-                             '!','@','{','}','?',
-                             ':','~','[',']',',','.'}: #trata operadores aritmeticos e tokens primitivos
+                elif car in {'=', ';', '+', '*','-','/', '(', ')',
+                             '<','>','|','&','!','@','{','}','?',
+                             ':','~','[',']',',','.','%'}: #trata operadores aritmeticos e tokens primitivos
                     estado = 4
                 elif car == '#': #trata comentario
                     estado = 5
                 else:
                     return Token(TipoToken.ERROR, '<' + car + '>', self.linha)
             elif estado == 2:
+
                 # estado que trata nomes (identificadores ou palavras reservadas)
                 lexema = lexema + car
                 car = self.getChar()
-                if car is None or (not car.isalnum()):
-                    # terminou o nome
+                if car is None or (not car.isalnum()): # terminou o nome
+
+                    ID_Fun = False
+                    #Verificando se é um ID de chamada/declaração de função
+                    if car == '(':
+                        ID_Fun = True
+
                     self.ungetChar(car)
                     if lexema in Lexico.reservadas:
                         return Token(Lexico.reservadas[lexema], lexema, self.linha)
+                    if len(lexema) > 32:  # limite de caracteres para um id
+                        return Token(TipoToken.ERROR, lexema, self.linha)
+                    elif ID_Erro:
+                        ID_Erro = False
+                        return Token(TipoToken.ERROR, lexema, self.linha)
                     else:
+                        if ID_Fun:
+                            return Token(TipoToken.ID_FUNCTION,lexema,self.linha)
                         return Token(TipoToken.ID, lexema, self.linha)
+
             elif estado == 3:
                 # estado que trata numeros
                 lexema = lexema + car
                 car = self.getChar()
-                if car is None or (not car.isdigit()):
-                    # terminou o numero
-                    self.ungetChar(car)
-                    return Token(TipoToken.NUM, lexema, self.linha)
+
+                if car == '.': #Numero flutuante
+                    estado = 7
+                else:
+                    if car is None or (not car.isdigit()):
+                        # terminou o numero
+                        self.ungetChar(car)
+                        return Token(TipoToken.NUM, lexema, self.linha)
             elif estado == 4:
                 # estado que trata outros tokens primitivos comuns
                 lexema = lexema + car
@@ -199,19 +220,18 @@ class Lexico:
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
                     return Token(TipoToken.ATRIB, lexema, self.linha)
-                elif car == '~':
+                elif car == '!':
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
-                    if lexema == '~=':
+                    if lexema == '!=':
                         return Token(TipoToken.COMPAR_IGUAL, lexema, self.linha)
                     else:  # se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
-                    return Token(TipoToken.ERROR, lexema, self.linha)
                 elif car == ';':
                     return Token(TipoToken.PTOVIRG, lexema, self.linha)
                 elif car in {'+','-'}:
                     return Token(TipoToken.ARIT_SUM, lexema, self.linha)
-                elif car in {'*','/'}:
+                elif car in {'*','/','%'}:
                     return Token(TipoToken.ARIT_MULT, lexema, self.linha)
                 elif car == '(':
                     return Token(TipoToken.ABREPAR, lexema, self.linha)
@@ -227,8 +247,10 @@ class Lexico:
                     return Token(TipoToken.COMPAR_NUM, lexema, self.linha)
                 elif car in {'|','&'}:
                     lexema = lexema + self.getChar()  # vai tentar procurar um '='
-                    if lexema in {'||', '&&'}:
-                        return Token(TipoToken.OPLOG, lexema, self.linha)
+                    if lexema == '||':
+                        return Token(TipoToken.OR, lexema, self.linha)
+                    if lexema == '&&':
+                        return Token(TipoToken.AND, lexema, self.linha)
                     else:# se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
@@ -259,10 +281,9 @@ class Lexico:
                     car = self.getChar()
                 self.ungetChar(car)
                 estado = 1
-            elif estado == 6:
+            elif estado == 6: #estado que trata numeros hexadecimais
                 car = self.getChar()
                 lexema = lexema + car
-                #tratando numeros hexadecimais
                 if car not in self.charsHex:
                     return Token(TipoToken.ERROR,'0x'+ lexema,self.linha)
                 else:
@@ -272,8 +293,25 @@ class Lexico:
                         lexema = lexema.replace(lexema[-1],'')
                         return Token(TipoToken.NUMHEX, '0x' + lexema, self.linha)
 
+            elif estado == 7: #estado que trata float
+                lexema = lexema + car
+                car = self.getChar()
 
-# lex = Lexico('exemplo.monga')
+                if car is None or (not car.isdigit()):
+                    # terminou o numero
+                    if car == '.':  # Chegou outro ponto, retorna erro
+                        erro_Float = True
+                    elif car.isalnum(): # Individuo ta enfiando letra no meio de um numero float
+                        erro_Float = True
+                    else:
+                        if erro_Float:
+                            return Token(TipoToken.ERROR, lexema, self.linha)
+                        self.ungetChar(car)
+                        return Token(TipoToken.NUMFLOAT, lexema, self.linha)
+
+
+
+# lex = Lexico('Testes/if_else_log.monga')
 # lex.abreArquivo()
 #
 # while(True):

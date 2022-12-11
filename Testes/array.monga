@@ -1,0 +1,9 @@
+
+#Exemplos de arrays e records(structs)
+#Não existe declaraçao de arrays ou records na linguagem, apenas referenciações
+#Logo, aspectos semanticos aqui não são avaliados.
+
+FUNCTION main(){
+    abc[1] = 1234;
+    abc.num = 1245;
+}

@@ -1,0 +1,8 @@
+
+FUNCTION main(){
+
+    VAR abc: int;
+
+    numero = 2;
+
+}
