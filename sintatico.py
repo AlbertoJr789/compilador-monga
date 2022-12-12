@@ -76,7 +76,7 @@ class Sintatico:
         self.tokenAtual = None
         self.deuErro = False
         self.modoPanico = False
-        self.tokensSync = (tt.PTOVIRG,tt.FIMARQ,tt.FECHABLOCO,tt.ABREBLOCO)
+        self.tokensSync = (tt.PTOVIRG,tt.FIMARQ)
 
     def traduz(self, nomeArquivo):
         if not self.lex is None:
@@ -104,6 +104,16 @@ class Sintatico:
         else:
             return False
 
+
+    def testaVarNaoDeclarada(self, var, linha):
+        if self.deuErro:
+            return
+        if not self.tabsimb.existeIdent(var):
+            self.deuErro = True
+            msg = "Variável " + var + " não declarada."
+            self.semantico.erroSemantico(msg, linha)
+            quit()
+
     def consome(self, token):
 
         if token == tt.ERROR:
@@ -113,11 +123,12 @@ class Sintatico:
             return
 
         if self.tokenEsperadoEncontrado(token) and not self.modoPanico:
+
             print(f'consumiu: {self.tokenAtual.tipo}: {self.tokenAtual.lexema}')
 
             # SEMANTICO
             match self.tokenAtual.tipo:
-                # Retornando lexema para declaração
+                # Retornando lexema para declaração/número
                 # Primeiro o lexema precisa ser salvo para chamar o próximo token que será consumido depois
                 case tt.IDVAR:
                     tokenBkp = self.tokenAtual
@@ -131,6 +142,69 @@ class Sintatico:
                     tokenBkp = self.tokenAtual
                     self.tokenAtual = self.lex.getToken()
                     return tokenBkp
+                #Retornando Tipos de número ------
+                case tt.NUM:
+                    num = self.tokenAtual.lexema
+                    self.tokenAtual = self.lex.getToken()
+                    return int(num)
+                case tt.NUMHEX:
+                    num = self.tokenAtual.lexema
+                    self.tokenAtual = self.lex.getToken()
+                    return hex(int(num))
+                case tt.NUMFLOAT:
+                    num = self.tokenAtual.lexema
+                    self.tokenAtual = self.lex.getToken()
+                    return float(num)
+                #Retornando Operadores --------
+                case tt.COMPAR_NUM:
+                    match self.tokenAtual.lexema:
+                        case '<':
+                            self.tokenAtual = self.lex.getToken()
+                            return '<'
+                        case '<=':
+                            self.tokenAtual = self.lex.getToken()
+                            return '<='
+                        case '>':
+                            self.tokenAtual = self.lex.getToken()
+                            return '>'
+                        case '>=':
+                            self.tokenAtual = self.lex.getToken()
+                            return '>='
+                        case _:
+                            return
+                case tt.COMPAR_IGUAL:
+                    match self.tokenAtual.lexema:
+                        case '==':
+                            self.tokenAtual = self.lex.getToken()
+                            return '=='
+                        case '!=':
+                            self.tokenAtual = self.lex.getToken()
+                            return '!='
+                        case _:
+                            return
+                case tt.ARIT_SUM:
+                    match self.tokenAtual.lexema:
+                        case '+':
+                            self.tokenAtual = self.lex.getToken()
+                            return '+'
+                        case '-':
+                            self.tokenAtual = self.lex.getToken()
+                            return '-'
+                        case _:
+                            return
+                case tt.ARIT_MULT:
+                    match self.tokenAtual.lexema:
+                        case '*':
+                            self.tokenAtual = self.lex.getToken()
+                            return '*'
+                        case '/':
+                            self.tokenAtual = self.lex.getToken()
+                            return '/'
+                        case '%':
+                            self.tokenAtual = self.lex.getToken()
+                            return '%'
+                        case _:
+                            return
                 case _:
                     pass
 
@@ -160,21 +234,6 @@ class Sintatico:
             self.modoPanico = False
         else:
             pass
-
-    def salvaLexema(self):
-        return self.tokenAtual.lexema
-
-    def salvaLinha(self):
-        return self.tokenAtual.linha
-
-    def testaVarNaoDeclarada(self, var, linha):
-        if self.deuErro:
-            return
-        if not self.tabsimb.existeIdent(var):
-            self.deuErro = True
-            msg = "Variável " + var + " não declarada."
-            self.semantico.erroSemantico(msg, linha)
-            quit()
 
     # Expandindo não terminais
     #Produção inicial
@@ -285,7 +344,7 @@ class Sintatico:
         #Lendo declaração IF-ELSE
         if self.tokenEsperadoEncontrado(tt.IF):
             self.consome(tt.IF)
-            self.EXP()
+            print('Resultado If: ',self.EXP())
             self.BLOCK()
             if self.tokenEsperadoEncontrado(tt.ELSE):
                 self.consome(tt.ELSE)
@@ -293,7 +352,7 @@ class Sintatico:
         #Lendo declaração WHILE
         if self.tokenEsperadoEncontrado(tt.WHILE):
             self.consome(tt.WHILE)
-            self.EXP()
+            print('Resultado While: ',self.EXP())
             self.BLOCK()
         #chamando função
         if self.tokenEsperadoEncontrado(tt.ID_FUNCTION):
@@ -302,18 +361,18 @@ class Sintatico:
         if self.tokenEsperadoEncontrado(tt.ID):
             var = self.VAR()
             self.consome(tt.ATRIB)
-            self.EXP()
+            res = self.EXP()
+            print('Resultado Atribuição: ',res)
             self.consome(tt.PTOVIRG)
             self.testaVarNaoDeclarada(var.lexema,var.linha)
-
         if self.tokenEsperadoEncontrado(tt.RETURN):
             self.consome(tt.RETURN)
             if not self.tokenEsperadoEncontrado(tt.PTOVIRG):
-                self.EXP()
+                print('Retorno: ',self.EXP())
             self.consome(tt.PTOVIRG)
         if self.tokenEsperadoEncontrado(tt.ARROBA):
             self.consome(tt.ARROBA)
-            self.EXP()
+            print('@: ',self.EXP())
             self.consome(tt.PTOVIRG)
         if self.tokenEsperadoEncontrado(tt.ABREBLOCO):
             self.BLOCK()
@@ -345,225 +404,277 @@ class Sintatico:
             self.EXP()
             if self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE):
                 self.consome(tt.ABRE_COLCHETE)
-                self.EXP()
+                res = self.EXP()
                 self.consome(tt.FECHA_COLCHETE)
+                if not res.lexema.isdigit() or not int(res.lexema) >= 0: #se indice nao for inteiro ou negativo
+                    self.semantico.erroSemantico(f'Índice {res.lexema} inválido',res.linha)
             else:
                 self.consome(tt.PONTO)
-                self.consome(tt.ID)
+                ID = self.consome(tt.ID)
+                self.testaVarNaoDeclarada(ID.lexema,ID.linha)
         else:
             return self.consome(tt.ID)
 
     # !, + , - , numint, numfloat, (
     def EXP(self):
         print('exp')
-        self.ATRIB()
+        return self.ATRIB()
 
     def ATRIB(self):
         #print('atrib')
-        self.OR()
-        self.RESTOATRIB()
+        valor = self.OR()
+        return self.RESTOATRIB(valor)
 
-    def RESTOATRIB(self):
+    def RESTOATRIB(self,valor):
         print('restoatrib')
         if self.tokenEsperadoEncontrado(tt.ATRIB):
             self.consome(tt.ATRIB)
-            self.ATRIB()
+            valor2 = self.ATRIB()
+
+            # Se tiver fazendo operação logica com float, relatar ERRO
+            if (isinstance(valor, int) and isinstance(valor2, float)) or \
+                    (isinstance(valor, float) and isinstance(valor2, int)):
+                self.semantico.erroSemantico(f'Atribuição entre int e float '
+                                             f'[{valor} = {valor2}]', self.tokenAtual.linha)
+                return
+
+            return valor2
+        else:
+            return valor
+
 
     def OR(self):
         #print('or')
-        self.AND()
-        self.RESTOOR()
+        valor = self.AND()
+        return self.RESTOOR(valor)
 
-    def RESTOOR(self):
+    def RESTOOR(self,valor):
         print('restoor')
         if self.tokenEsperadoEncontrado(tt.OR):
             self.consome(tt.OR)
-            self.AND()
+            valor2 = self.AND()
             self.RESTOOR()
+
+            # Se tiver fazendo operação logica com float, relatar ERRO
+            if (isinstance(valor, int) and isinstance(valor2, float)) or \
+                    (isinstance(valor, float) and isinstance(valor2, int)):
+                self.semantico.erroSemantico(f'Operação lógica entre valores que um(ambos) não é(são) inteiro(s) '
+                                             f'[{valor} || {valor2}]', self.tokenAtual.linha)
+                return
+
+            # Or entre valores (||)
+            if valor or valor2:
+                return True
+            else:
+                return False
+        else:
+            return valor
+
 
     def AND(self):
         #print('and')
-        self.NOT()
-        self.RESTOAND()
+        valor = self.NOT()
+        return self.RESTOAND(valor)
 
-    def RESTOAND(self):
+    def RESTOAND(self,valor):
         print('restoand')
         if self.tokenEsperadoEncontrado(tt.AND):
             self.consome(tt.AND)
-            self.NOT()
+            valor2 = self.NOT()
             self.RESTOAND()
+
+            # Se tiver fazendo operação logica com float, relatar ERRO
+            if (isinstance(valor, int) and isinstance(valor2, float)) or \
+              (isinstance(valor, float) and isinstance(valor2, int)):
+                self.semantico.erroSemantico(f'Operação lógica entre valores que um(ambos) não é(são) inteiro(s) '
+                                             f'[{valor} && {valor2}]',self.tokenAtual.linha)
+                return
+
+            #And entre valores (&&)
+            if valor and valor2:
+                return True
+            else:
+                return False
+
+        else:
+            return valor
 
     def NOT(self):
         print('not')
         if self.tokenEsperadoEncontrado(tt.NOT):
             self.consome(tt.NOT)
-            self.NOT()
+            valor = self.NOT()
+
+            # Se tiver fazendo operação logica com float, relatar ERRO
+            if not isinstance(valor, int):
+                self.semantico.erroSemantico(f'Operação lógica com valor que não é inteiro [{valor}]',
+                                             self.tokenAtual.linha)
+                return
+
+            #Not unário (!)
+            if not valor:
+                return not valor
+            else:
+                return valor
         else:
-            self.REL()
+            return self.REL()
 
     def REL(self):
-        #print('reç')
-        self.ADD()
-        self.RESTOREL()
+        #print('rel')
+        valor = self.ADD()
+        return self.RESTOREL(valor)
 
-    def RESTOREL(self):
+    def RESTOREL(self,valor):
         print('restorel')
         if self.tokenEsperadoEncontrado(tt.COMPAR_IGUAL):
-            self.consome(tt.COMPAR_IGUAL)
-            self.ADD()
+            op = self.consome(tt.COMPAR_IGUAL)
+            valor2 = self.ADD()
+
+            #Comparação entre dois numeros (==, =>)
+            match op:
+                case '!=':
+                    if valor != valor2:
+                        return True
+                    else:
+                        return False
+                case '==':
+                    if valor == valor2:
+                        return True
+                    else:
+                        return False
+                case _:
+                    pass
+
         elif self.tokenEsperadoEncontrado(tt.COMPAR_NUM):
-            self.consome(tt.COMPAR_NUM)
-            self.ADD()
+            op = self.consome(tt.COMPAR_NUM)
+            valor2 = self.ADD()
+
+            #Comparação entre dois numeros (<,<=,>,>=)
+            match op:
+                case '<':
+                    if valor < valor2:
+                        return True
+                    else:
+                        return False
+                case '>':
+                    if valor > valor2:
+                        return True
+                    else:
+                        return False
+                case '<=':
+                    if valor <= valor2:
+                        return True
+                    else:
+                        return False
+                case '>=':
+                    if valor >= valor2:
+                        return True
+                    else:
+                        return False
+                case _:
+                    pass
+
+        else:
+            return valor
 
     def ADD(self):
         #print('add')
-        self.MULT()
-        self.RESTOADD()
+        valor = self.MULT()
+        return self.RESTOADD(valor)
 
-    def RESTOADD(self):
+    def RESTOADD(self,valor):
         print('restoadd')
         if self.tokenEsperadoEncontrado(tt.ARIT_SUM):
-            self.consome(tt.ARIT_SUM)
-            self.MULT()
-            self.RESTOADD()
+            op = self.consome(tt.ARIT_SUM)
+            valor2 = self.MULT()
+            self.RESTOADD(valor)
+
+            converterFloat = False
+            # Se tiver fazendo operação  entre inteiro e float, converte resultado pra inteiro
+            if isinstance(valor, int) and isinstance(valor2, float):
+                converterFloat = True
+            if isinstance(valor, float) and isinstance(valor2, int):
+                converterFloat = True
+
+            match op:
+                case '+':
+                    if converterFloat:
+                        return int(valor + valor2)
+                    return valor + valor2
+                case '-':
+                    if converterFloat:
+                        return int(valor - valor2)
+                    return valor - valor2
+                case _:
+                    pass
+        else:
+            return valor
+
 
     def MULT(self):
         #print('mult')
-        self.UNO()
-        self.RESTOMULT()
+        valor = self.UNO()
+        return self.RESTOMULT(valor)
 
-    def RESTOMULT(self):
+    def RESTOMULT(self,valor):
         print('restomult')
         if self.tokenEsperadoEncontrado(tt.ARIT_MULT):
-            self.consome(tt.ARIT_MULT)
-            self.UNO()
-            self.RESTOMULT()
+            op = self.consome(tt.ARIT_MULT)
+            valor2 = self.UNO()
+            self.RESTOMULT(valor)
+
+            converterFloat = False
+            converterHex = False
+            # Se tiver fazendo operação  entre inteiro e float, converte resultado pra inteiro
+            if isinstance(valor, int) and isinstance(valor2, float):
+                converterFloat = True
+            if not isinstance(valor, float) and isinstance(valor2, int):
+                converterFloat = True
+
+            match op:
+                case '*':
+                    if converterFloat:
+                        return int(valor * valor2)
+                    return valor * valor2
+                case '/':
+                    if converterFloat:
+                        return int(valor / valor2)
+                    return valor / valor2
+                case '%':
+                    if converterFloat:
+                        return int(valor % valor2)
+                    return valor % valor2
+                case _:
+                    pass
+        else:
+            return valor
 
     def UNO(self):
         print('uno')
         if self.tokenEsperadoEncontrado(tt.ARIT_SUM):
-            self.consome(tt.ARIT_SUM)
-            self.UNO()
+            op = self.consome(tt.ARIT_SUM)
+            valor = self.UNO()
+            match op:
+                case '+':
+                    return valor
+                case '-':
+                    return -valor
+                case _:
+                    pass
         else:
-            self.FATOR()
+            return self.FATOR()
 
     def FATOR(self):
         print('fator')
         if self.tokenEsperadoEncontrado(tt.NUM):
-            self.consome(tt.NUM)
+            return self.consome(tt.NUM)
         if self.tokenEsperadoEncontrado(tt.NUMFLOAT):
-            self.consome(tt.NUMFLOAT)
+            return self.consome(tt.NUMFLOAT)
         if self.tokenEsperadoEncontrado(tt.NUMHEX):
-            self.consome(tt.NUMHEX)
+            return self.consome(tt.NUMHEX)
         if self.tokenEsperadoEncontrado(tt.ABREPAR):
             self.consome(tt.ABREPAR)
             self.ATRIB()
             self.consome(tt.FECHAPAR)
 
-
-
-    ##################################################################
-    # Segue uma funcao para cada variavel da gramatica
-    ##################################################################
-
-    def F(self):
-        self.C()
-        self.Rf()
-
-    def Rf(self):
-        if self.tokenEsperadoEncontrado( tt.FIMARQ ):
-            pass
-        else:
-            self.C()
-            self.Rf()
-
-    def C(self):
-        if self.tokenEsperadoEncontrado( tt.READ ):
-            self.R()
-        elif self.tokenEsperadoEncontrado( tt.PRINT ):
-            self.P()
-        else:
-            self.A()
-
-    def A(self):
-        var = self.salvaLexema()
-        self.consome( tt.IDENT )
-        self.consome( tt.ATRIB )
-        valor = self.E()
-        self.consome( tt.PTOVIRG )
-        if not self.tabsimb.existeIdent(var):
-            self.tabsimb.declaraIdent(var, valor)
-        else:
-            self.tabsimb.atribuiValor(var, valor)
-
-    def R(self):
-        self.consome( tt.READ )
-        self.consome( tt.OPENPAR )
-        var = self.salvaLexema()
-        linha = self.salvaLinha()
-        self.consome( tt.IDENT )
-        self.consome( tt.CLOSEPAR )
-        self.consome( tt.PTOVIRG )
-
-        valor = eval(input("Input: "))
-        self.testaVarNaoDeclarada(var, linha)
-        self.tabsimb.atribuiValor(var, valor)
-
-    def P(self):
-        self.consome( tt.PRINT )
-        self.consome( tt.OPENPAR )
-        var = self.salvaLexema()
-        linha = self.salvaLinha()
-        self.consome( tt.IDENT )
-        self.consome( tt.CLOSEPAR )
-        self.consome( tt.PTOVIRG )
-        self.testaVarNaoDeclarada(var, linha)
-        valor = self.tabsimb.pegaValor(var)
-        print(valor)
-
-    def E(self):
-        valor1 = self.M()
-        valor2 = self.Rs(valor1)
-        return valor2
-
-    def Rs(self, valor1):
-        if self.tokenEsperadoEncontrado( tt.ADD ):
-            self.consome( tt.ADD )
-            valor2 = self.M()
-            valor3 = valor1 + valor2
-            return self.Rs(valor3)
-        else:
-            return valor1
-
-    def M(self):
-        valor1 = self.Op()
-        valor2 = self.Rm(valor1)
-        return valor2
-
-    def Rm(self, valor1):
-        if self.tokenEsperadoEncontrado( tt.MULT ):
-            self.consome( tt.MULT )
-            valor2 = self.Op()
-            valor3 = valor1 * valor2
-            return self.Rm(valor3)
-        else:
-            return valor1
-
-    def Op(self):
-        if self.tokenEsperadoEncontrado( tt.OPENPAR ):
-            self.consome( tt.OPENPAR )
-            valor = self.E()
-            self.consome( tt.CLOSEPAR )
-            return valor
-        elif self.tokenEsperadoEncontrado( tt.NUM ):
-            num = self.salvaLexema()
-            self.consome( tt.NUM )
-            return int(num)
-        else:
-            var = self.salvaLexema()
-            linha = self.salvaLinha()
-            self.consome(tt.IDENT)
-            self.testaVarNaoDeclarada(var, linha)
-            valor = self.tabsimb.pegaValor(var)
-            return valor
 
