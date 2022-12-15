@@ -1,0 +1,9 @@
+
+FUNCTION main(){
+
+    #Vai acusar que a variavel numero nao esta declarada
+    VAR abc: int;
+
+    numero = 2;
+
+}

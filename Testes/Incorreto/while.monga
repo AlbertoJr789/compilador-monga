@@ -1,0 +1,12 @@
+
+FUNCTION main(){
+
+    WHILE(1.25 < 3){
+       @1234;
+    }
+
+    WHILE(1 > 4.5){
+        @12345
+    }
+    RETURN;
+}

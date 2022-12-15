@@ -8,10 +8,7 @@ FUNCTION main(a: objeto,b: float,c: float): int{
 
    @123;
 
-   abc = 1 + 5;
-
-   #Variavel que nao esta declarada
-   var2 = 5 + 7;
+   abc = 2;
 
     RETURN;
 }

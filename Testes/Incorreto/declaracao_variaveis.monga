@@ -1,0 +1,32 @@
+
+
+FUNCTION main(a: objeto,b: float,c: float): int{
+
+   VAR abc: float;
+
+   VAR dce: int;
+
+   @123;
+
+   #Falta ;
+   abc = 2
+
+   #Variavel que nao esta declarada
+   var2 = 5 + 7; #Sincronizaria aqui
+
+   #Falta ;
+   dce = 5
+
+    RETURN; #Sincronizaria aqui
+}
+
+
+#Pra testes: substituir 1 pra 1.5 (indicar erro no semantico)
+
+FUNCTION somar(a:int,b: int): int{
+
+    RETURN 1 + 2;
+}
+
+
+

@@ -38,9 +38,7 @@ class TipoToken:
     ARROBA = (11,'@')
     IF = (13,'if')
     WHILE = (14,'while')
-    TYPE = (15,'type')
     ELSE = (16,'else')
-    NEW = (17,'new')
     VAR = (18,'var')
     FUNCTION = (19,'function')
     RETURN = (20,'return')
@@ -50,7 +48,6 @@ class TipoToken:
     ID_FUNCTION = (24,'id_function')
     ABREBLOCO = (25,'{')
     FECHABLOCO = (26,'}')
-    INTERROGACAO = (27,'?')
     DOISPONTOS = (28,':')
     ABRE_COLCHETE = (29,'[')
     FECHA_COLCHETE = (30,']')
@@ -165,8 +162,8 @@ class Lexico:
                         car = car.replace(car[-1],'')
                         estado = 3
                 elif car in {'=', ';', '+', '*','-','/', '(', ')',
-                             '<','>','|','&','!','@','{','}','?',
-                             ':','~','[',']',',','.','%'}: #trata operadores aritmeticos e tokens primitivos
+                             '<','>','|','&','!','@','{','}',
+                             ':','[',']',',','.','%'}: #trata operadores aritmeticos e tokens primitivos
                     estado = 4
                 elif car == '#': #trata comentario
                     estado = 5
@@ -226,7 +223,8 @@ class Lexico:
                         return Token(TipoToken.COMPAR_IGUAL, lexema, self.linha)
                     else:  # se não tiver
                         self.ungetChar(lexema[-1])  # 'des-lê'
-                        lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
+                        lexema = lexema.replace(lexema[-1], '')
+                        return Token(TipoToken.NOT,lexema,self.linha)# remove caractere do lexema
                 elif car == ';':
                     return Token(TipoToken.PTOVIRG, lexema, self.linha)
                 elif car in {'+','-'}:
@@ -255,10 +253,6 @@ class Lexico:
                         self.ungetChar(lexema[-1])  # 'des-lê'
                         lexema = lexema.replace(lexema[-1], '')  # remove caractere do lexema
                     return Token(TipoToken.ERROR,lexema,self.linha)
-                elif car == '?':
-                    return Token(TipoToken.INTERROGACAO,lexema,self.linha)
-                elif car == '!':
-                    return Token(TipoToken.NOT,lexema,self.linha)
                 elif car == ':':
                     return Token(TipoToken.DOISPONTOS,lexema,self.linha)
                 elif car == '{':
@@ -311,7 +305,7 @@ class Lexico:
 
 
 
-# lex = Lexico('Testes/if_else_log.monga')
+# lex = Lexico('Testes/Correto/if_else_log.monga')
 # lex.abreArquivo()
 #
 # while(True):

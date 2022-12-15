@@ -1,7 +1,6 @@
 from lexico import TipoToken as tt, Token, Lexico
 from tabela import TabelaSimbolos
 from semantico import Semantico
-import Testes
 
 """
  Linguagem Monga
@@ -13,7 +12,6 @@ import Testes
           Para tratar '[' e '{' como terminais quando necessario, serão colocados entre aspas
           Para que não seja confuso com o e-BNF
           
-
     program : { definition }
 
     definition : def-variable | def-function
@@ -71,12 +69,13 @@ import Testes
 
 class Sintatico:
 
-    def __init__(self):
+    def __init__(self,argv = None):
         self.lex = None
         self.tokenAtual = None
         self.deuErro = False
         self.modoPanico = False
         self.tokensSync = (tt.PTOVIRG,tt.FIMARQ)
+        self.argv = argv
 
     def traduz(self, nomeArquivo):
         if not self.lex is None:
@@ -93,6 +92,16 @@ class Sintatico:
 
             self.PROGRAM()
             self.consome(tt.FIMARQ)
+
+            try:
+                if self.argv[1] == '-t':
+                    if not self.argv[2]:
+                        print("Defina o nome do arquivo !")
+                    else: #escreve tabela de simbolos na raiz do projeto
+                        open(self.argv[2],'w').write(self.tabsimb.__str__())
+            except Exception:
+                    pass
+
             # fim do reconhecimento do fonte
             self.lex.fechaArquivo()
             return not self.deuErro
@@ -104,15 +113,24 @@ class Sintatico:
         else:
             return False
 
-
     def testaVarNaoDeclarada(self, var, linha):
         if self.deuErro:
             return
-        if not self.tabsimb.existeIdent(var):
+        if not self.tabsimb.existeIdent(var,'V'):
             self.deuErro = True
             msg = "Variável " + var + " não declarada."
             self.semantico.erroSemantico(msg, linha)
-            quit()
+        else:
+            return True
+
+    def testaFuncaoNaoDeclarada(self,var,linha):
+        if self.deuErro:
+            return
+        if not self.tabsimb.existeIdent(var,'F'):
+            self.deuErro = True
+            msg = "Função " + var + " não declarada."
+            self.semantico.erroSemantico(msg, linha)
+
 
     def consome(self, token):
 
@@ -218,22 +236,22 @@ class Sintatico:
             print('ERRO DE SINTAXE [linha %d]: era esperado "%s" mas veio "%s"'
                 % (self.tokenAtual.linha, msg, self.tokenAtual.lexema))
 
+            print('Modo Panico Ativado')
+
             #Procurando token de sincronismo ($,;,{,})
             parar = False
             while not parar:
                 self.tokenAtual = self.lex.getToken()
+                print(self.tokenAtual.tipo)
                 for t in self.tokensSync:
                     (const,msg) = t
                     if self.tokenAtual.const == const:
                         parar = True
+                        print('Achou Token Sync')
+                        self.tokenAtual = self.lex.getToken()
+                        self.modoPanico = False
                         break
 
-        elif self.tokenEsperadoEncontrado(token): #Achou token de sincronismo, cancela modo panico
-            print('consumiu sync')
-            self.tokenAtual = self.lex.getToken()
-            self.modoPanico = False
-        else:
-            pass
 
     # Expandindo não terminais
     #Produção inicial
@@ -269,20 +287,24 @@ class Sintatico:
         self.consome(tt.DOISPONTOS)
         tipo = self.TYPE()
         self.consome(tt.PTOVIRG)
-        self.tabsimb.declaraIdent(id.lexema,tipo.lexema)
+        self.tabsimb.declaraIdent(id.lexema,'V',tipo.lexema)
 
     #Reconhecendo declarações de funções
     #DEF-FUNCTION -> function id ( PARAMETERS ) [ : TYPE ] BLOCK
     def DEF_FUNCTION(self):
         print('def-function')
         self.consome(tt.FUNCTION)
-        self.consome(tt.ID_FUNCTION)
+        id = self.consome(tt.ID_FUNCTION)
         self.consome(tt.ABREPAR)
         self.PARAMETERS()
         self.consome(tt.FECHAPAR)
         if self.tokenEsperadoEncontrado(tt.DOISPONTOS): #Se tiver tipo de retorno explicito
             self.consome(tt.DOISPONTOS)
-            self.TYPE()
+            tipo = self.TYPE()
+            self.tabsimb.declaraIdent(id.lexema,'F',tipo.lexema)
+        else:
+            self.tabsimb.declaraIdent(id.lexema,'F','VOID')
+
         self.BLOCK()
 
     #Reconhecendo parametros da função
@@ -300,9 +322,10 @@ class Sintatico:
     #PARAMETER -> id : TYPE
     def PARAMETER(self):
         print('parameter')
-        self.consome(tt.ID)
+        id = self.consome(tt.ID)
         self.consome(tt.DOISPONTOS)
-        self.TYPE()
+        tipo = self.TYPE()
+        self.tabsimb.declaraIdent(id.lexema,'VF',tipo.lexema)
 
     #Escopo de código
     #BLOCK -> '{' { DEF-VARIABLE } { STATEMENT } '}'
@@ -313,7 +336,8 @@ class Sintatico:
             self.DEF_VARIABLE()
         while self.tokenEsperadoEncontrado(tt.IF) or \
               self.tokenEsperadoEncontrado(tt.WHILE) or \
-              self.tokenEsperadoEncontrado(tt.ID)or \
+              self.tokenEsperadoEncontrado(tt.ID) or \
+              self.tokenEsperadoEncontrado(tt.ID_FUNCTION) or\
               self.tokenEsperadoEncontrado(tt.RETURN) or \
               self.tokenEsperadoEncontrado(tt.ARROBA)or \
               self.tokenEsperadoEncontrado(tt.ABREBLOCO): #filtrar algum statement
@@ -344,7 +368,7 @@ class Sintatico:
         #Lendo declaração IF-ELSE
         if self.tokenEsperadoEncontrado(tt.IF):
             self.consome(tt.IF)
-            print('Resultado If: ',self.EXP())
+            self.EXP()
             self.BLOCK()
             if self.tokenEsperadoEncontrado(tt.ELSE):
                 self.consome(tt.ELSE)
@@ -352,27 +376,28 @@ class Sintatico:
         #Lendo declaração WHILE
         if self.tokenEsperadoEncontrado(tt.WHILE):
             self.consome(tt.WHILE)
-            print('Resultado While: ',self.EXP())
+            self.EXP()
             self.BLOCK()
         #chamando função
         if self.tokenEsperadoEncontrado(tt.ID_FUNCTION):
             self.CALL()
+            self.consome(tt.PTOVIRG)
         #declarando variavel
         if self.tokenEsperadoEncontrado(tt.ID):
             var = self.VAR()
             self.consome(tt.ATRIB)
-            res = self.EXP()
-            print('Resultado Atribuição: ',res)
+            ret = self.EXP()
             self.consome(tt.PTOVIRG)
-            self.testaVarNaoDeclarada(var.lexema,var.linha)
+            if self.testaVarNaoDeclarada(var.lexema,var.linha):
+                self.tabsimb.atribuiValor(var.lexema,ret)
         if self.tokenEsperadoEncontrado(tt.RETURN):
             self.consome(tt.RETURN)
             if not self.tokenEsperadoEncontrado(tt.PTOVIRG):
-                print('Retorno: ',self.EXP())
+                self.EXP()
             self.consome(tt.PTOVIRG)
         if self.tokenEsperadoEncontrado(tt.ARROBA):
             self.consome(tt.ARROBA)
-            print('@: ',self.EXP())
+            self.EXP()
             self.consome(tt.PTOVIRG)
         if self.tokenEsperadoEncontrado(tt.ABREBLOCO):
             self.BLOCK()
@@ -400,7 +425,8 @@ class Sintatico:
         if self.tokenEsperadoEncontrado(tt.NOT) or\
             self.tokenEsperadoEncontrado(tt.ARIT_SUM) or\
             self.tokenEsperadoEncontrado(tt.NUMHEX) or \
-            self.tokenEsperadoEncontrado(tt.NUM):
+            self.tokenEsperadoEncontrado(tt.NUM) or \
+            self.tokenEsperadoEncontrado(tt.NUMFLOAT):
             self.EXP()
             if self.tokenEsperadoEncontrado(tt.ABRE_COLCHETE):
                 self.consome(tt.ABRE_COLCHETE)
@@ -431,13 +457,6 @@ class Sintatico:
             self.consome(tt.ATRIB)
             valor2 = self.ATRIB()
 
-            # Se tiver fazendo operação logica com float, relatar ERRO
-            if (isinstance(valor, int) and isinstance(valor2, float)) or \
-                    (isinstance(valor, float) and isinstance(valor2, int)):
-                self.semantico.erroSemantico(f'Atribuição entre int e float '
-                                             f'[{valor} = {valor2}]', self.tokenAtual.linha)
-                return
-
             return valor2
         else:
             return valor
@@ -453,20 +472,27 @@ class Sintatico:
         if self.tokenEsperadoEncontrado(tt.OR):
             self.consome(tt.OR)
             valor2 = self.AND()
-            self.RESTOOR()
+            self.RESTOOR(valor)
 
-            # Se tiver fazendo operação logica com float, relatar ERRO
-            if (isinstance(valor, int) and isinstance(valor2, float)) or \
-                    (isinstance(valor, float) and isinstance(valor2, int)):
-                self.semantico.erroSemantico(f'Operação lógica entre valores que um(ambos) não é(são) inteiro(s) '
-                                             f'[{valor} || {valor2}]', self.tokenAtual.linha)
+            print(f'valor: {valor}, valor2: {valor2}')
+
+            erroSemantico = False
+            #Comparação entre dois numeros (||)
+            if type(valor) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+            if type(valor2) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor2}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+
+            if erroSemantico:
                 return
 
             # Or entre valores (||)
             if valor or valor2:
-                return True
+                return 1
             else:
-                return False
+                return 0
         else:
             return valor
 
@@ -481,20 +507,27 @@ class Sintatico:
         if self.tokenEsperadoEncontrado(tt.AND):
             self.consome(tt.AND)
             valor2 = self.NOT()
-            self.RESTOAND()
+            self.RESTOAND(valor)
 
-            # Se tiver fazendo operação logica com float, relatar ERRO
-            if (isinstance(valor, int) and isinstance(valor2, float)) or \
-              (isinstance(valor, float) and isinstance(valor2, int)):
-                self.semantico.erroSemantico(f'Operação lógica entre valores que um(ambos) não é(são) inteiro(s) '
-                                             f'[{valor} && {valor2}]',self.tokenAtual.linha)
+            print(f'tipo valor: {valor}, tipo valor2: {valor2}')
+
+            erroSemantico = False
+            #Comparação entre dois numeros (&&)
+            if type(valor) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+            if type(valor2) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor2}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+
+            if erroSemantico:
                 return
 
             #And entre valores (&&)
             if valor and valor2:
-                return True
+                return 1
             else:
-                return False
+                return 0
 
         else:
             return valor
@@ -505,17 +538,22 @@ class Sintatico:
             self.consome(tt.NOT)
             valor = self.NOT()
 
-            # Se tiver fazendo operação logica com float, relatar ERRO
-            if not isinstance(valor, int):
-                self.semantico.erroSemantico(f'Operação lógica com valor que não é inteiro [{valor}]',
-                                             self.tokenAtual.linha)
+            print(f'valor: {valor}')
+
+            erroSemantico = False
+            #Comparação entre dois numeros (==, !=)
+            if type(valor) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+
+            if erroSemantico:
                 return
 
             #Not unário (!)
-            if not valor:
-                return not valor
+            if valor:
+                return 0
             else:
-                return valor
+                return 1
         else:
             return self.REL()
 
@@ -530,18 +568,31 @@ class Sintatico:
             op = self.consome(tt.COMPAR_IGUAL)
             valor2 = self.ADD()
 
-            #Comparação entre dois numeros (==, =>)
+            print(f'valor: {valor}, valor2: {valor2}')
+
+            erroSemantico = False
+            #Comparação entre dois numeros (==, !=)
+            if type(valor) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+            if type(valor2) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor2}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+
+            if erroSemantico:
+                return
+
             match op:
                 case '!=':
                     if valor != valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case '==':
                     if valor == valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case _:
                     pass
 
@@ -549,28 +600,42 @@ class Sintatico:
             op = self.consome(tt.COMPAR_NUM)
             valor2 = self.ADD()
 
+            print(f'valor: {valor}, valor2: {valor2}')
+
+            erroSemantico = False
+            #Comparação entre dois numeros (==, !=)
+            if type(valor) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+            if type(valor2) is not int:
+                self.semantico.erroSemantico(f'Operação lógica com operando [{valor2}] que não é inteiro ',self.tokenAtual.linha)
+                erroSemantico = True
+
+            if erroSemantico:
+                return
+
             #Comparação entre dois numeros (<,<=,>,>=)
             match op:
                 case '<':
                     if valor < valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case '>':
                     if valor > valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case '<=':
                     if valor <= valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case '>=':
                     if valor >= valor2:
-                        return True
+                        return 1
                     else:
-                        return False
+                        return 0
                 case _:
                     pass
 
@@ -599,10 +664,12 @@ class Sintatico:
             match op:
                 case '+':
                     if converterFloat:
+                        print('Convertendo resultado pra inteiro')
                         return int(valor + valor2)
                     return valor + valor2
                 case '-':
                     if converterFloat:
+                        print('Convertendo resultado pra inteiro')
                         return int(valor - valor2)
                     return valor - valor2
                 case _:
